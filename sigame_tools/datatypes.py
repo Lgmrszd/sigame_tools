@@ -201,7 +201,6 @@ class Package(InfoOwner, JSONSerializeable, XMLOp):
     def json_deserialize(cls, d) -> None | Package:
         if "rounds" not in d:
             return None
-        print(d)
         p = Package(d["name"])
         io = super().json_deserialize(d)
         if io:
@@ -670,7 +669,7 @@ class Atom(JSONSerializeable, XMLOp):
         return f"SIGame Atom, type \"{self.type}\", text \"{self.text}\""
 
 
-class SIDocumentFormats:
+class SIDocumentTypes:
     SIQ = "siq"
     JSIQ = "jsiq.zip"
 
@@ -698,7 +697,7 @@ class SIDocument:
                                 shutil.copyfileobj(from_file, to_file)
 
     @classmethod
-    def from_siq(cls, path) -> SIDocument:
+    def read_siq(cls, path) -> SIDocument:
         with ZipFile(path, "r") as zipfile:
             with zipfile.open("content.xml") as fp:
                 document: Document = parse(fp)
@@ -708,7 +707,7 @@ class SIDocument:
         return doc
 
     @classmethod
-    def from_jsiq(cls, path):
+    def read_jsiq(cls, path) -> SIDocument:
         with ZipFile(path, "r") as zipfile:
             with zipfile.open("content.json") as fp:
                 package: Package = json.load(fp, object_hook=json_object_hook)
@@ -736,6 +735,23 @@ class SIDocument:
                 # json.dump(self.package, fp, default=default)
                 # iterable = content_parser.SIJSONEncoder(ensure_ascii=False, indent=2).iterencode(self.package)
             self.save_assets(zipfile)
+
+    @classmethod
+    def read_as(cls, path, filetype: str) -> SIDocument:
+        if filetype == SIDocumentTypes.SIQ:
+            return cls.read_siq(path)
+        if filetype == SIDocumentTypes.JSIQ:
+            return cls.read_jsiq(path)
+        raise ValueError("Read error: Incorrect file type")
+
+    def save_as(self, path, filetype: str):
+        if filetype == SIDocumentTypes.SIQ:
+            self.save_siq(path)
+            return
+        if filetype == SIDocumentTypes.JSIQ:
+            self.save_jsiq(path)
+            return
+        raise ValueError(f"Save error: Incorrect file type: '{filetype}'")
 
 
 def json_default(o: Any) -> Any:

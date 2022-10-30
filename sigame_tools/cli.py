@@ -1,76 +1,82 @@
+from __future__ import annotations
+
 import argparse
 import pathlib
 
-from sigame_tools.datatypes import SIDocument
+from sigame_tools.datatypes import SIDocument, SIDocumentTypes
+
+
+def guess_type(file: str | pathlib.Path) -> str:
+    if isinstance(file, pathlib.Path):
+        file: str = file.name
+    if file.endswith(".jsiq.zip"):
+        return SIDocumentTypes.JSIQ
+    if file.endswith(".siq"):
+        return SIDocumentTypes.SIQ
+    return ""
 
 
 def query(args):
-    path: pathlib.Path = args.PATH
-    d: SIDocument = SIDocument.from_siq(path)
-    p = d.package
-    print(p)
+    src = args.src
+    input_type = args.in_type or guess_type(src)
+    if not input_type:
+        raise ValueError(f"Unable to guess type for file {src}")
+    si_doc: SIDocument = SIDocument.read_as(src, input_type)
+    print(si_doc.package)
 
 
-def convert_siq_jsiq(args):
-    out_path: pathlib.Path = args.OUTPUT
-    path: pathlib.Path = args.PATH
-    # if not out_path_root.exists():
-    #     raise FileNotFoundError(f"No such directory: '{out_path_root}'")
-    if out_path.is_dir():
-        out_path = out_path.joinpath(path.stem + ".jsiq.zip")
-        # raise NotADirectoryError(f"Not a directory: '{out_path_root}'")
-    d: SIDocument = SIDocument.from_siq(path)
-    # p = d.package
-    d.save_jsiq(out_path)
-
-    # out_path = out_path_root.joinpath(path.stem)
-    # if not out_path.exists():
-    #     out_path.mkdir()
-
-    # iterable = content_parser.SIJSONEncoder(ensure_ascii=False, indent=2).iterencode(p)
-    # with open(out_path.joinpath("content.json"), "w") as fp:
-    #     for chunk in iterable:
-    #         fp.write(chunk)
-
-
-def convert_jsiq_siq(args):
-    out_path: pathlib.Path = args.OUTPUT
-    path: pathlib.Path = args.PATH
-    if out_path.is_dir():
-        out_path = out_path.joinpath(path.stem.strip(".jsiq") + ".siq")
-    d: SIDocument = SIDocument.from_jsiq(path)
-    d.save_siq(out_path)
+def convert(args):
+    src = args.src
+    dst = args.dst
+    input_type = args.in_type or guess_type(src)
+    output_type = "" if dst.is_dir() else args.in_type or guess_type(dst)
+    if not input_type:
+        raise ValueError(f"Unable to guess type for input file {src}")
+    if not output_type:
+        if dst.is_dir():
+            raise ValueError(f"'{dst}' is a Directory, please specify full path or provide file type")
+        raise ValueError(f"Unable to guess type for output file {dst}")
+    print(f"Converting from {input_type} to {output_type} ...")
+    si_doc: SIDocument = SIDocument.read_as(src, input_type)
+    print("Load successful")
+    si_doc.save_as(dst, output_type)
+    print("Save successful")
 
 
 parser = argparse.ArgumentParser(description="SI Game tools CLI")
 
-subparsers = parser.add_subparsers(required=True)
+commands = parser.add_subparsers(required=True, help="Specific action to perform", metavar="<command>")
 
-siq = subparsers.add_parser("siq", description="Perform operations on SIQ (.siq) package",
-                            help="Perform operations on SIQ (.siq) package")
-siq.add_argument("PATH", type=pathlib.Path, help="Path to SIQ package")
+# Query
+query_parser = commands.add_parser("query", description="Query info about SI Game package",
+                                   help="Query info about SI Game package")
+query_parser.set_defaults(func=query)
+query_parser.add_argument("--in-type", "-i", choices=(SIDocumentTypes.SIQ, SIDocumentTypes.JSIQ),
+                          help="Explicitly specify input file format")
+query_parser.add_argument("src", type=pathlib.Path, help="SI Game package file\n"
+                                                         "File format is detected automatically", metavar="FILE")
 
-siq_subparsers = siq.add_subparsers(required=True)
+# Convert
+convert_parser = commands.add_parser("convert", description="Convert SI Game package to another format",
+                                     help="Convert SI Game package to another format",
+                                     formatter_class=argparse.RawTextHelpFormatter)
+convert_parser.set_defaults(func=convert)
 
-siq_info = siq_subparsers.add_parser("query", description="Query info about the package")
-siq_info.set_defaults(func=query)
+# src_group = convert_parser.add_argument_group("Source")
+convert_parser.add_argument("--in-type", "-i", choices=(SIDocumentTypes.SIQ, SIDocumentTypes.JSIQ),
+                            help="Explicitly specify file format")
+convert_parser.add_argument("src", type=pathlib.Path, help="Source SI Game package file\n"
+                                                           "File format is detected automatically", metavar="SOURCE")
 
-siq_convert = siq_subparsers.add_parser("convert", description="Query info about the package")
-siq_convert.add_argument("OUTPUT", type=pathlib.Path, help="Path to save parsed data")
-siq_convert.set_defaults(func=convert_siq_jsiq)
-
-jsiq = subparsers.add_parser("jsiq", description="Perform operations on JSIQ (.jsiq.zip) package",
-                            help="Perform operations on JSIQ (.jsiq.zip) package")
-jsiq.add_argument("PATH", type=pathlib.Path, help="Path to JSIQ package")
-
-jsiq_subparsers = jsiq.add_subparsers(required=True)
-
-# jsiq_info = jsiq_subparsers.add_parser("query", description="Query info about the package")
-# jsiq_info.set_defaults(func=query)
-
-jsiq_convert = jsiq_subparsers.add_parser("convert", description="Query info about the package")
-jsiq_convert.add_argument("OUTPUT", type=pathlib.Path, help="Path to save parsed data")
-jsiq_convert.set_defaults(func=convert_jsiq_siq)
+# convert_parser.add_argument("--format", "-f", dest="bar")
+# dst_group = convert_parser.add_argument_group("Destination")
+convert_parser.add_argument("--out-type", "-o", choices=(SIDocumentTypes.SIQ, SIDocumentTypes.JSIQ),
+                            help="Explicitly specify output file format\n"
+                                 "(required when DESTINATION is a Directory)")
+convert_parser.add_argument("dst", type=pathlib.Path, help="Destination package file or directory\n"
+                                                           "File format is detected automatically\n"
+                                                           "If directory is specified instead, format is required",
+                            metavar="DESTINATION")
 
 
 def main():
