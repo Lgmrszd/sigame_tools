@@ -26,16 +26,18 @@ def query(args):
 
 
 def convert(args):
-    src = args.src
-    dst = args.dst
+    src: pathlib.Path = args.src
+    if src.is_dir():
+        raise ValueError(f"'{src}' is a Directory")
+    dst: pathlib.Path = args.dst
     input_type = args.in_type or guess_type(src)
-    output_type = "" if dst.is_dir() else args.in_type or guess_type(dst)
+    output_type = "" if dst.is_dir() else args.out_type or guess_type(dst)
     if not input_type:
-        raise ValueError(f"Unable to guess type for input file {src}")
+        raise ValueError(f"Unable to guess type for input file '{src}'")
     if not output_type:
         if dst.is_dir():
             raise ValueError(f"'{dst}' is a Directory, please specify full path or provide file type")
-        raise ValueError(f"Unable to guess type for output file {dst}")
+        raise ValueError(f"Unable to guess type for output file '{dst}'")
     print(f"Converting from {input_type} to {output_type} ...")
     si_doc: SIDocument = SIDocument.read_as(src, input_type)
     print("Load successful")
