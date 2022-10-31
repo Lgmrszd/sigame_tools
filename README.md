@@ -4,7 +4,7 @@ Collection of tools to work with SI Game packages
 ## Installation
 
 ```shell
-pip install https://github.com/Lgmrszd/sigame_tools.git
+pip install git+https://github.com/Lgmrszd/sigame_tools.git
 ```
 
 ## Usage
